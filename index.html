@@ -6,12 +6,13 @@
     <title>Hutan Magis: Serangan Otomatis</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Masukkan semula plugin rasmi Gyro 360 supaya pusingan stabil -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/DeviceOrientationControls.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #020508; font-family: sans-serif; touch-action: none; user-select: none; }
         #canvas-3d { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
         #canvas-2d { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 25; pointer-events: none; }
         
-        /* Efek Sinematik Overlay */
         .cinematic-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             box-shadow: inset 0 0 150px rgba(0,0,0,0.9);
@@ -19,13 +20,11 @@
             opacity: 0.15; pointer-events: none; z-index: 20; mix-blend-mode: overlay;
         }
 
-        /* UI Permainan */
         #gameUI { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; pointer-events: none; display: none; }
         #scoreDisplay { position: absolute; top: 20px; right: 20px; color: #fcd34d; font-size: 1.5rem; font-weight: bold; text-shadow: 0 0 10px rgba(252,211,77,0.5); }
         #hpContainer { position: absolute; top: 20px; left: 20px; width: 200px; height: 12px; background: rgba(0,0,0,0.5); border: 2px solid #fff; border-radius: 10px; overflow: hidden; }
         #hpBar { width: 100%; height: 100%; background: linear-gradient(90deg, #ff4444, #44ff44); transition: width 0.3s; }
         
-        /* Crosshair Dinamis */
         #crosshair { 
             position: fixed; top: 50%; left: 50%; width: 20px; height: 20px; 
             border: 2px solid rgba(255,255,255,0.5); border-radius: 50%; 
@@ -40,7 +39,6 @@
             padding: 5px 15px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2);
         }
 
-        /* Menu */
         .menu-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(2, 5, 8, 0.98); display: flex; flex-direction: column;
@@ -56,21 +54,18 @@
 </head>
 <body>
 
-    <!-- Menu Utama -->
     <div id="mainMenu" class="menu-overlay">
         <h1 class="text-4xl text-amber-100 mb-2 font-light tracking-widest">HUTAN MAGIS</h1>
-        <p class="text-gray-400 italic mb-8">Dunia 360° • Serangan Otomatis • Audio Aktif</p>
+        <p class="text-gray-400 italic mb-8">Dunia 360° • Serangan Otomatis • Gyro Fix</p>
         <button class="btn-enter" onclick="requestAccess()">Mulai Permainan</button>
     </div>
 
-    <!-- Game Over Menu -->
     <div id="gameOverMenu" class="menu-overlay" style="display:none;">
         <h1 class="text-5xl text-red-600 mb-4 font-bold">GAME OVER</h1>
         <p id="finalScore" class="text-2xl text-amber-300 mb-8">Skor Akhir: 0</p>
         <button class="btn-enter" onclick="location.reload()">Main Lagi</button>
     </div>
 
-    <!-- In-Game UI -->
     <div id="gameUI">
         <div id="hpContainer"><div id="hpBar"></div></div>
         <div id="scoreDisplay">Skor: 0</div>
@@ -89,11 +84,11 @@
         let enemies = [], enemySpawnInterval;
         const clock = new THREE.Clock();
 
-        // --- SISTEM ROTASI (360° BEBAS) ---
+        // --- SISTEM ROTASI ---
         let rotationY = 0, rotationX = 0;
         const LIMIT_X = 0.6; 
         let gyroActive = false;
-        let initialAlpha = null;
+        let controls; // Untuk simpan plugin gyro
 
         function requestAccess() {
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -106,16 +101,12 @@
         }
 
         window.addEventListener('deviceorientation', (e) => {
-            if (e.alpha !== null && isPlaying) {
+            // Aktifkan gyro hanya jika data sah dan game berjalan
+            if (e.alpha !== null && isPlaying && !gyroActive) {
                 gyroActive = true;
                 document.getElementById('gyroStatus').innerText = "Gyro: Aktif (360°)";
-                
-                if (initialAlpha === null) initialAlpha = e.alpha;
-                let diffAlpha = (e.alpha - initialAlpha);
-                rotationY = (diffAlpha * Math.PI / 180);
-                
-                let rawX = ((e.beta - 70) * Math.PI / 180);
-                rotationX = Math.max(-LIMIT_X, Math.min(LIMIT_X, rawX));
+                // Gunakan fungsi rasmi untuk 360 darjah yang stabil tanpa glitch
+                controls = new THREE.DeviceOrientationControls(camera);
             }
         });
 
@@ -210,7 +201,7 @@
             // Tanah
             scene.add(new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshLambertMaterial({ color: 0x050805 })).rotateX(-Math.PI/2));
             
-            // Hutan
+            // Hutan (Penuh 360 darjah)
             for (let i = 0; i < 200; i++) {
                 const tree = new THREE.Group();
                 const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.4, 4), new THREE.MeshLambertMaterial({ color: 0x110800 }));
@@ -232,15 +223,15 @@
             rainGeo.setAttribute('position', new THREE.BufferAttribute(rPos, 3));
             scene.add(new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0x667788, size: 0.1, transparent: true, opacity: 0.5 })));
 
-            // Input Swipe (Backup 360)
+            // Input Swipe (Jika peranti tiada gyro)
             let isDown = false, lastX = 0, lastY = 0;
             const startP = (e) => { isDown = true; const p = e.touches ? e.touches[0] : e; lastX = p.clientX; lastY = p.clientY; };
             const moveP = (e) => {
                 if(!isDown || gyroActive) return;
                 const p = e.touches ? e.touches[0] : e;
-                rotationY -= (p.clientX - lastX) * 0.005;
+                rotationY -= (p.clientX - lastX) * 0.005; // Y BEBAS 360
                 rotationX -= (p.clientY - lastY) * 0.005;
-                rotationX = Math.max(-LIMIT_X, Math.min(LIMIT_X, rotationX));
+                rotationX = Math.max(-LIMIT_X, Math.min(LIMIT_X, rotationX)); // X (Pitch) sahaja yang di hadkan
                 lastX = p.clientX; lastY = p.clientY;
             };
             const endP = () => { isDown = false; };
@@ -249,9 +240,10 @@
             window.addEventListener('touchstart', startP); window.addEventListener('touchmove', moveP); window.addEventListener('touchend', endP);
         }
 
-        // --- SISTEM MUSUH (120° HADAPAN) ---
+        // --- SISTEM MUSUH (120° HADAPAN SAHAJA) ---
         function spawnEnemy() {
             if(!isPlaying) return;
+            // Musuh hanya spawn dalam lingkungan 120 darjah di depan (2 * PI / 3)
             const ang = (Math.random() - 0.5) * (Math.PI * (120/180)); 
             const dist = 45;
             const enemy = new THREE.Group();
@@ -266,7 +258,7 @@
         function autoAttack() {
             if(!isPlaying) return;
             
-            // Raycaster selalu mengecek dari tengah kamera (0,0)
+            // Tembak secara auto di tengah skrin (0,0)
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
             const targets = enemies.map(e => e.hit);
             const intersects = raycaster.intersectObjects(targets);
@@ -275,11 +267,9 @@
                 const target = intersects[0].object;
                 const idx = enemies.findIndex(e => e.hit === target);
                 
-                // Beri efek visual pada crosshair saat terkunci
                 document.getElementById('crosshair').classList.add('locked');
 
                 if (idx > -1) {
-                    // Serangan Magis
                     playChime();
                     for(let i=0; i<15; i++) sparkles.push(new Sparkle(w2D/2, h2D/2));
                     
@@ -312,12 +302,16 @@
             let ts = dt * 60;
 
             if(isPlaying) {
-                camera.rotation.set(rotationX, rotationY, 0);
+                // UPDATE GYRO ATAU SWIPE
+                if (gyroActive && controls) {
+                    controls.update(); // Guna plugin 360 darjah yang bebas glitch
+                } else {
+                    camera.rotation.set(rotationX, rotationY, 0); // Jika guna jari/tetikus
+                }
 
-                // Cek Serangan Otomatis setiap frame
                 autoAttack();
 
-                // Update Musuh
+                // Pergerakan musuh mengejar pemain
                 for(let i = enemies.length-1; i >= 0; i--) {
                     const e = enemies[i];
                     const dir = new THREE.Vector3().subVectors(camera.position, e.mesh.position).normalize();
@@ -329,7 +323,7 @@
                     }
                 }
 
-                // Update Hujan 3D
+                // Hujan
                 const rPos = rainGeo.attributes.position.array;
                 for(let i=1; i<rPos.length; i+=3) {
                     rPos[i] -= 0.6 * ts;
@@ -340,7 +334,7 @@
 
             renderer.render(scene, camera);
 
-            // Update Sparkle 2D
+            // Sparkle 2D
             ctx2D.clearRect(0,0, w2D, h2D);
             for(let i = sparkles.length-1; i >= 0; i--) {
                 const s = sparkles[i]; s.update(ts);
@@ -369,4 +363,5 @@
     </script>
 </body>
 </html>
+
 
