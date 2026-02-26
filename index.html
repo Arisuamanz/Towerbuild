@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hutan Magis: Survival 180° Fixed</title>
+    <title>Hutan Magis: Survival 180° (Audio & Gyro Fixed)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #020508; font-family: sans-serif; touch-action: none; user-select: none; }
-        #canvas-3d { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
-        #canvas-2d { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 25; pointer-events: none; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
+        #overlayCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 25; pointer-events: none; }
         
         .cinematic-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -18,11 +18,12 @@
             opacity: 0.15; pointer-events: none; z-index: 20; mix-blend-mode: overlay;
         }
 
+        /* UI Permainan */
         #gameUI { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; pointer-events: none; display: none; }
-        #scoreDisplay { position: absolute; top: 20px; right: 20px; color: #fcd34d; font-size: 1.5rem; font-weight: bold; }
-        #hpContainer { position: absolute; top: 20px; left: 20px; width: 200px; height: 12px; background: rgba(0,0,0,0.5); border: 2px solid #fff; border-radius: 10px; overflow: hidden; }
+        #scoreDisplay { position: absolute; top: 20px; right: 20px; color: #fcd34d; font-size: 1.5rem; font-weight: bold; text-shadow: 0 0 10px rgba(252,211,77,0.5); }
+        #hpContainer { position: absolute; top: 20px; left: 20px; width: 200px; height: 15px; background: rgba(0,0,0,0.5); border: 2px solid #fff; border-radius: 10px; overflow: hidden; }
         #hpBar { width: 100%; height: 100%; background: linear-gradient(90deg, #ff4444, #44ff44); transition: width 0.3s; }
-        #crosshair { position: fixed; top: 50%; left: 50%; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.8); border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 8px #fff; }
+        #crosshair { position: fixed; top: 50%; left: 50%; width: 10px; height: 10px; border: 2px solid rgba(255,255,255,0.8); border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 8px #fff; }
         
         #gyroStatus {
             position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
@@ -44,39 +45,42 @@
 </head>
 <body>
 
+    <!-- Menu Utama -->
     <div id="mainMenu" class="menu-overlay">
-        <h1 class="text-3xl text-amber-100 mb-2 font-light">HUTAN MAGIS</h1>
-        <p class="text-gray-400 mb-8 italic">180° Survival • Audio Fix • Motion</p>
-        <button class="btn-enter" onclick="requestAccess()">MULAI PERMAINAN</button>
+        <h1 class="text-4xl text-amber-100 mb-2 font-light tracking-widest">HUTAN MAGIS</h1>
+        <p class="text-gray-400 italic mb-8">Survival 180° • Audio Tetap • Kontrol Gerakan</p>
+        <button class="btn-enter" onclick="requestAccess()">Mulai Bermain</button>
     </div>
 
+    <!-- Menu Game Over -->
     <div id="gameOverMenu" class="menu-overlay" style="display:none;">
-        <h1 class="text-4xl text-red-600 mb-4 font-bold">PERMAINAN SELESAI</h1>
+        <h1 class="text-5xl text-red-600 mb-4 font-bold">GAME OVER</h1>
         <p id="finalScore" class="text-2xl text-amber-300 mb-8">Skor: 0</p>
-        <button class="btn-enter" onclick="location.reload()">COBA LAGI</button>
+        <button class="btn-enter" onclick="location.reload()">Coba Lagi</button>
     </div>
 
+    <!-- HUD -->
     <div id="gameUI">
         <div id="hpContainer"><div id="hpBar"></div></div>
         <div id="scoreDisplay">Skor: 0</div>
-        <div id="gyroStatus">Gyro: Mencari...</div>
+        <div id="gyroStatus">Gyro: Mencari Sensor...</div>
         <div id="crosshair"></div>
         <div id="damageFlash"></div>
     </div>
 
     <div class="cinematic-overlay"></div>
-    <canvas id="canvas-2d"></canvas>
-    <div id="canvas-3d"></div>
+    <canvas id="overlayCanvas"></canvas>
+    <div id="canvas-container"></div>
 
     <script>
-        // --- KONFIGURASI GAME ---
+        // --- KONFIGURASI GAME & DELTA TIME ---
         let isPlaying = false, score = 0, hp = 100;
         let enemies = [], enemySpawnInterval;
         const clock = new THREE.Clock();
 
-        // --- SISTEM ROTASI (KUNCI 180°) ---
+        // --- SISTEM ROTASI 180° (FIXED) ---
         let rotationY = 0, rotationX = 0;
-        const LIMIT_Y = Math.PI / 2; // Kunci 90 derajat kiri & kanan (Total 180)
+        const LIMIT_Y = Math.PI / 2; // Kunci 90 deg kiri & kanan (Total 180)
         const LIMIT_X = 0.5;
         let gyroActive = false;
 
@@ -90,12 +94,14 @@
             }
         }
 
+        // Listener Gyro Manual (Anti-Senget)
         window.addEventListener('deviceorientation', (e) => {
             if (e.alpha !== null && isPlaying) {
                 gyroActive = true;
-                document.getElementById('gyroStatus').innerText = "Sensor Gyro: Aktif (180° Locked)";
+                document.getElementById('gyroStatus').innerText = "Sensor Gyro: Aktif (180° Terkunci)";
                 
-                // Kalkulasi manual untuk mengunci 180 derajat
+                // Gunakan gamma untuk Yaw (Kiri/Kanan) dan beta untuk Pitch (Atas/Bawah)
+                // Paksi Z (Roll) diabaikan supaya tidak miring
                 let rawY = (e.gamma * Math.PI / 180);
                 let rawX = ((e.beta - 75) * Math.PI / 180);
 
@@ -104,48 +110,43 @@
             }
         });
 
-        // --- SISTEM AUDIO (DIPERBAIKI) ---
+        // --- SISTEM AUDIO (DIPULIHKAN) ---
         let audioCtx, gainNode;
 
         function initAudio() {
-            try {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                gainNode = audioCtx.createGain();
-                gainNode.gain.value = 0.4;
-                gainNode.connect(audioCtx.destination);
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            gainNode = audioCtx.createGain();
+            gainNode.gain.value = 0.5;
+            gainNode.connect(audioCtx.destination);
 
-                // Noise Hujan
-                const bufferSize = 2 * audioCtx.sampleRate;
-                const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-                const output = noiseBuffer.getChannelData(0);
-                for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
+            // Bunyi Hujan (Noise)
+            const bufferSize = 2 * audioCtx.sampleRate;
+            const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const output = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
 
-                const rainSource = audioCtx.createBufferSource();
-                rainSource.buffer = noiseBuffer;
-                rainSource.loop = true;
-                const filter = audioCtx.createBiquadFilter();
-                filter.type = 'lowpass';
-                filter.frequency.value = 700;
+            const rainSource = audioCtx.createBufferSource();
+            rainSource.buffer = noiseBuffer;
+            rainSource.loop = true;
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 700;
 
-                rainSource.connect(filter);
-                filter.connect(gainNode);
-                rainSource.start();
-                
-                if (audioCtx.state === 'suspended') {
-                    audioCtx.resume();
-                }
-            } catch(e) { console.error("Audio error", e); }
+            rainSource.connect(filter);
+            filter.connect(gainNode);
+            rainSource.start();
         }
 
         function playChime() {
             if (!audioCtx) return;
-            const notes = [523.25, 659.25, 783.99, 880.00];
+            const notes = [523.25, 659.25, 783.99, 880.00]; 
             const freq = notes[Math.floor(Math.random() * notes.length)];
             const osc = audioCtx.createOscillator();
             const g = audioCtx.createGain();
             osc.type = 'sine'; osc.frequency.value = freq;
             g.gain.setValueAtTime(0, audioCtx.currentTime);
-            g.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.05);
+            g.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.05);
             g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
             osc.connect(g); g.connect(gainNode);
             osc.start(); osc.stop(audioCtx.currentTime + 1.2);
@@ -156,20 +157,20 @@
             const osc = audioCtx.createOscillator();
             const g = audioCtx.createGain();
             osc.type = 'sine'; osc.frequency.setValueAtTime(45, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 2.5);
+            osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 3);
             g.gain.setValueAtTime(0, audioCtx.currentTime);
-            g.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.1);
-            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 2.5);
+            g.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.1);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 3);
             osc.connect(g); g.connect(gainNode);
-            osc.start(); osc.stop(audioCtx.currentTime + 2.5);
+            osc.start(); osc.stop(audioCtx.currentTime + 3);
         }
 
-        // --- SISTEM 2D SPARKLE ---
-        const canvas2D = document.getElementById('canvas-2d');
+        // --- SISTEM 2D SPARKLE (CANVAS) ---
+        const canvas2D = document.getElementById('overlayCanvas');
         const ctx2D = canvas2D.getContext('2d');
         let w2D = window.innerWidth, h2D = window.innerHeight;
         canvas2D.width = w2D; canvas2D.height = h2D;
-        const sparkles = [];
+        const magicParticles = [];
 
         class Sparkle {
             constructor(x, y) {
@@ -177,8 +178,10 @@
                 this.size = Math.random() * 5 + 2;
                 const a = Math.random() * Math.PI * 2;
                 const s = Math.random() * 12 + 5;
-                this.vx = Math.cos(a) * s; this.vy = Math.sin(a) * s;
-                this.life = 1.0; this.decay = Math.random() * 0.02 + 0.02;
+                this.vx = Math.cos(a) * s;
+                this.vy = Math.sin(a) * s;
+                this.life = 1.0;
+                this.decay = Math.random() * 0.02 + 0.02;
             }
             update(ts) {
                 this.x += this.vx * ts; this.y += this.vy * ts;
@@ -191,6 +194,10 @@
                 ctx2D.fillStyle = `hsla(45, 100%, 70%, ${this.life})`;
                 ctx2D.shadowBlur = 15; ctx2D.shadowColor = "orange"; ctx2D.fill();
             }
+        }
+
+        function spawnMagic2D() {
+            for(let i=0; i<25; i++) magicParticles.push(new Sparkle(w2D/2, h2D/2));
         }
 
         // --- SISTEM 3D ---
@@ -207,27 +214,31 @@
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(w2D, h2D);
             renderer.setPixelRatio(window.devicePixelRatio);
-            document.getElementById('canvas-3d').appendChild(renderer.domElement);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
 
             raycaster = new THREE.Raycaster();
             scene.add(new THREE.AmbientLight(0x112233, 1));
 
+            // Tanah
             const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshLambertMaterial({ color: 0x050805 }));
             ground.rotation.x = -Math.PI / 2;
             scene.add(ground);
 
+            // Hutan
             for (let i = 0; i < 150; i++) {
                 const tree = new THREE.Group();
                 const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.4, 4), new THREE.MeshLambertMaterial({ color: 0x110800 }));
                 trunk.position.y = 2; tree.add(trunk);
                 const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.5, 5), new THREE.MeshLambertMaterial({ color: 0x051105 }));
                 leaves.position.y = 4.5; tree.add(leaves);
-                const d = 6 + Math.random() * 60; const a = Math.random() * Math.PI * 2;
+                const d = 5 + Math.random() * 70; const a = Math.random() * Math.PI * 2;
                 tree.position.set(Math.cos(a)*d, 0, Math.sin(a)*d);
                 scene.add(tree);
             }
 
-            const rCount = 2000; rainGeo = new THREE.BufferGeometry();
+            // Hujan 3D
+            const rCount = 2000;
+            rainGeo = new THREE.BufferGeometry();
             const rPos = new Float32Array(rCount * 3);
             for(let i=0; i<rCount*3; i+=3) {
                 rPos[i] = (Math.random()-0.5)*100; rPos[i+1] = Math.random()*40; rPos[i+2] = (Math.random()-0.5)*100;
@@ -235,7 +246,7 @@
             rainGeo.setAttribute('position', new THREE.BufferAttribute(rPos, 3));
             scene.add(new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0x667788, size: 0.1, transparent: true, opacity: 0.5 })));
 
-            // Input Swipe
+            // Input Swipe (Backup)
             let isDown = false, lastX = 0, lastY = 0;
             const startP = (e) => { isDown = true; const p = e.touches ? e.touches[0] : e; lastX = p.clientX; lastY = p.clientY; };
             const moveP = (e) => {
@@ -248,14 +259,15 @@
                 lastX = p.clientX; lastY = p.clientY;
             };
             const endP = () => { if(isDown) { shoot(); isDown = false; } };
+
             window.addEventListener('mousedown', startP); window.addEventListener('mousemove', moveP); window.addEventListener('mouseup', endP);
             window.addEventListener('touchstart', startP); window.addEventListener('touchmove', moveP); window.addEventListener('touchend', endP);
         }
 
-        // --- GAME LOGIC ---
+        // --- LOGIKA PERMAINAN ---
         function spawnEnemy() {
             if(!isPlaying) return;
-            const ang = (Math.random() - 0.5) * Math.PI; // Hanya depan
+            const ang = (Math.random() - 0.5) * Math.PI; 
             const dist = 40;
             const enemy = new THREE.Group();
             const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(1.2), new THREE.MeshBasicMaterial({ color: 0xff3333, wireframe: true }));
@@ -268,7 +280,7 @@
         function shoot() {
             if(!isPlaying) return;
             playChime();
-            for(let i=0; i<20; i++) sparkles.push(new Sparkle(w2D/2, h2D/2));
+            spawnMagic2D();
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
             const hits = raycaster.intersectObjects(enemies.map(e => e.hit));
             if(hits.length > 0) {
@@ -282,23 +294,28 @@
         function takeDamage() {
             hp -= 20; document.getElementById('hpBar').style.width = hp + "%";
             const f = document.getElementById('damageFlash'); f.style.opacity = 0.5; setTimeout(() => f.style.opacity = 0, 100);
-            if(hp <= 0) {
-                isPlaying = false; clearInterval(enemySpawnInterval);
-                document.getElementById('gameUI').style.display = "none";
-                document.getElementById('gameOverMenu').style.display = "flex";
-                document.getElementById('finalScore').innerText = `Skor Akhir: ${score}`;
-            }
+            if(hp <= 0) endGame();
         }
 
+        function endGame() {
+            isPlaying = false; clearInterval(enemySpawnInterval);
+            document.getElementById('gameUI').style.display = "none";
+            document.getElementById('gameOverMenu').style.display = "flex";
+            document.getElementById('finalScore').innerText = `Skor Akhir: ${score}`;
+        }
+
+        // --- ANIMASI LOOP (DELTA TIME) ---
         function animate() {
             requestAnimationFrame(animate);
             let dt = clock.getDelta();
             if(dt > 0.1) dt = 0.1;
-            let ts = dt * 60;
+            let ts = dt * 60; // Skala waktu
 
             if(isPlaying) {
+                // Kamera Terkunci 180° (Anti-Senget)
                 camera.rotation.set(rotationX, rotationY, 0);
 
+                // Update Musuh
                 for(let i = enemies.length-1; i >= 0; i--) {
                     const e = enemies[i];
                     const dir = new THREE.Vector3().subVectors(camera.position, e.mesh.position).normalize();
@@ -310,6 +327,7 @@
                     }
                 }
 
+                // Update Hujan 3D
                 const rPos = rainGeo.attributes.position.array;
                 for(let i=1; i<rPos.length; i+=3) {
                     rPos[i] -= 0.6 * ts;
@@ -317,15 +335,17 @@
                 }
                 rainGeo.attributes.position.needsUpdate = true;
                 
+                // Guruh Acak
                 if(Math.random() < 0.002) playThunder();
             }
 
             renderer.render(scene, camera);
 
+            // Update Sparkle 2D
             ctx2D.clearRect(0,0, w2D, h2D);
-            for(let i = sparkles.length-1; i >= 0; i--) {
-                const s = sparkles[i]; s.update(ts);
-                if(s.life <= 0) sparkles.splice(i, 1); else s.draw();
+            for(let i = magicParticles.length-1; i >= 0; i--) {
+                const s = magicParticles[i]; s.update(ts);
+                if(s.life <= 0) magicParticles.splice(i, 1); else s.draw();
             }
         }
 
@@ -334,7 +354,8 @@
             document.getElementById('gameUI').style.display = "block";
             initAudio();
             if(!scene) init3D();
-            score = 0; hp = 100; isPlaying = true;
+            score = 0; hp = 100;
+            isPlaying = true;
             clock.start();
             animate();
             enemySpawnInterval = setInterval(spawnEnemy, 1600);
