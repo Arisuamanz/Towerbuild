@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hutan Magis: Serangan Otomatis</title>
+    <title>Hutan Magis: Kutip Bintang & Rama-Rama</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/DeviceOrientationControls.js"></script>
@@ -22,7 +22,7 @@
         #gameUI { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; pointer-events: none; display: none; }
         #scoreDisplay { position: absolute; top: 20px; right: 20px; color: #fcd34d; font-size: 1.5rem; font-weight: bold; text-shadow: 0 0 10px rgba(252,211,77,0.5); }
         #hpContainer { position: absolute; top: 20px; left: 20px; width: 200px; height: 12px; background: rgba(0,0,0,0.5); border: 2px solid #fff; border-radius: 10px; overflow: hidden; }
-        #hpBar { width: 100%; height: 100%; background: linear-gradient(90deg, #ff4444, #44ff44); transition: width 0.3s; }
+        #hpBar { width: 100%; height: 100%; background: linear-gradient(90deg, #ffcc00, #00ffcc); transition: width 0.3s; }
         
         #crosshair { 
             position: fixed; top: 50%; left: 50%; width: 20px; height: 20px; 
@@ -58,26 +58,26 @@
             font-size: 1.2rem; cursor: pointer; border-radius: 40px; text-transform: uppercase; pointer-events: auto;
         }
         .btn-enter:hover { background: #fcd34d; color: #000; box-shadow: 0 0 20px #fcd34d; }
-        #damageFlash { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: red; opacity: 0; pointer-events: none; z-index: 150; }
+        #damageFlash { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #ffd700; opacity: 0; pointer-events: none; z-index: 150; }
     </style>
 </head>
 <body>
 
     <div id="mainMenu" class="menu-overlay">
         <h1 class="text-4xl text-amber-100 mb-2 font-light tracking-widest">HUTAN MAGIS</h1>
-        <p class="text-gray-400 italic mb-8">Dunia 360° • Auto Attack • Burung & Hantu</p>
-        <button class="btn-enter" onclick="requestAccess()">Mula Bermain</button>
+        <p class="text-gray-400 italic mb-8">Dunia 360° • Bintang & Rama-Rama (90°)</p>
+        <button class="btn-enter" onclick="requestAccess()">Mula Santai</button>
     </div>
 
     <div id="gameOverMenu" class="menu-overlay" style="display:none;">
-        <h1 class="text-5xl text-red-600 mb-4 font-bold">GAME OVER</h1>
-        <p id="finalScore" class="text-2xl text-amber-300 mb-8">Skor Akhir: 0</p>
+        <h1 class="text-5xl text-amber-500 mb-4 font-bold">REHAT SEBENTAR</h1>
+        <p id="finalScore" class="text-2xl text-amber-300 mb-8">Skor Cozy: 0</p>
         <button class="btn-enter" onclick="location.reload()">Main Lagi</button>
     </div>
 
     <div id="gameUI">
         <div id="hpContainer"><div id="hpBar"></div></div>
-        <div id="scoreDisplay">Skor: 0</div>
+        <div id="scoreDisplay">Cozy: 0</div>
         <div id="gyroStatus">Mencari Sensor Gerak...</div>
         <div id="crosshair"></div>
         <button class="btn-center-cam" onclick="centerCamera()">🎯 Depan</button>
@@ -119,12 +119,10 @@
             }
         });
 
-        // --- FUNGSI RESET KAMERA KE DEPAN ---
         function centerCamera() {
             if (gyroActive && controls) {
                 controls.alphaOffset = 0;
                 controls.update();
-                
                 let euler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
                 controls.alphaOffset = -euler.y;
                 controls.update();
@@ -273,86 +271,107 @@
             window.addEventListener('touchstart', startP); window.addEventListener('touchmove', moveP); window.addEventListener('touchend', endP);
         }
 
-        // --- SISTEM MUSUH (HANTU & BURUNG) ---
+        // --- SISTEM REKA BENTUK: SHINY STAR & BUTTERFLY (90° SPAWN) ---
         function spawnEnemy() {
             if(!isPlaying) return;
-            const ang = (Math.random() - 0.5) * (Math.PI * (120/180)); 
+            
+            // Spawn di hadapan (1/2 PI = 90 darjah)
+            const ang = (Math.random() - 0.5) * (Math.PI * (90/180)); 
             const dist = 45;
             const enemy = new THREE.Group();
             
             let hitMesh;
-            const isBird = Math.random() > 0.5;
+            const isSkyStar = Math.random() > 0.5;
 
-            if (isBird) {
-                // --- BURUNG HITAM ---
-                const birdMat = new THREE.MeshBasicMaterial({ color: 0x050505 }); 
-                const bodyGeo = new THREE.ConeGeometry(0.5, 2, 4);
-                bodyGeo.rotateX(Math.PI / 2);
-                const body = new THREE.Mesh(bodyGeo, birdMat);
+            if (isSkyStar) {
+                // --- 1. SHINY STAR (Bintang Bersinar dari Atas) ---
+                const starGroup = new THREE.Group();
+                const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                const core = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), coreMat);
+                starGroup.add(core);
+
+                // Pancaran Cahaya Bintang (Sinar X, Y, Z)
+                const rayMat = new THREE.MeshBasicMaterial({ color: 0xffe600, transparent: true, opacity: 0.7 });
                 
-                const wingGeo = new THREE.ConeGeometry(2.5, 1, 3);
-                const wings = new THREE.Mesh(wingGeo, birdMat);
+                const rayY = new THREE.Mesh(new THREE.OctahedronGeometry(0.3, 0), rayMat);
+                rayY.scale.set(1, 4, 1);
+                starGroup.add(rayY);
                 
-                const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-                const eye1 = new THREE.Mesh(new THREE.SphereGeometry(0.12), eyeMat);
-                eye1.position.set(0.2, 0.2, 0.5);
-                const eye2 = new THREE.Mesh(new THREE.SphereGeometry(0.12), eyeMat);
-                eye2.position.set(-0.2, 0.2, 0.5);
+                const rayX = new THREE.Mesh(new THREE.OctahedronGeometry(0.3, 0), rayMat);
+                rayX.scale.set(4, 1, 1);
+                starGroup.add(rayX);
+                
+                const rayZ = new THREE.Mesh(new THREE.OctahedronGeometry(0.3, 0), rayMat);
+                rayZ.scale.set(1, 1, 4);
+                starGroup.add(rayZ);
 
-                enemy.add(body); enemy.add(wings); enemy.add(eye1); enemy.add(eye2);
+                const glow = new THREE.PointLight(0xffe600, 2, 25);
+                starGroup.add(glow);
 
-                hitMesh = new THREE.Mesh(new THREE.SphereGeometry(1.5), new THREE.MeshBasicMaterial({ visible: false }));
+                enemy.add(starGroup);
+
+                // Kotak perlanggaran halimunan
+                hitMesh = new THREE.Mesh(new THREE.SphereGeometry(2.0), new THREE.MeshBasicMaterial({ visible: false }));
                 enemy.add(hitMesh);
 
-                enemy.position.set(Math.sin(ang)*dist, 12 + Math.random() * 8, -Math.cos(ang)*dist);
-                enemy.lookAt(camera.position);
-                enemy.userData = { type: 'bird', wings: wings, wingAngle: 0 };
+                enemy.position.set(Math.sin(ang)*dist, 15 + Math.random() * 5, -Math.cos(ang)*dist);
+                
+                // Simpan rujukan kumpulan bintang untuk diputarkan nanti
+                enemy.userData = { type: 'skyStar', starMesh: starGroup };
                 
             } else {
-                // --- HANTU PUTIH (REKA BENTUK BARU) ---
-                const ghostMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
+                // --- 2. RAMA-RAMA COZY (Butterfly) ---
+                const butterflyGroup = new THREE.Group();
                 
-                // Kepala Hantu (Bulat)
-                const head = new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 16), ghostMat);
-                head.position.y = 0.8;
+                // Badan Rama-rama
+                const bodyMat = new THREE.MeshBasicMaterial({ color: 0xe6ffff });
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.2, 8), bodyMat);
+                body.rotation.x = Math.PI / 2; // Badan memanjang ke depan
+                butterflyGroup.add(body);
 
-                // Badan Hantu (Kain Meleret/Kon Terbalik)
-                const bodyGeo = new THREE.ConeGeometry(0.7, 2.5, 16);
-                bodyGeo.rotateX(Math.PI); // Pusing supaya muncung tajam di bawah
-                const body = new THREE.Mesh(bodyGeo, ghostMat);
-                body.position.y = -0.4;
+                // Sayap Rama-rama
+                const wingMat = new THREE.MeshBasicMaterial({ color: 0x00e6ff, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+                const wingGeo = new THREE.PlaneGeometry(1.5, 2);
+                wingGeo.rotateX(-Math.PI / 2); // Baringkan sayap
 
-                // Mata Hitam
-                const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-                const eye1 = new THREE.Mesh(new THREE.SphereGeometry(0.1), eyeMat);
-                eye1.position.set(0.25, 0.8, 0.55); // Posisi mata Z menghala ke depan
-                const eye2 = new THREE.Mesh(new THREE.SphereGeometry(0.1), eyeMat);
-                eye2.position.set(-0.25, 0.8, 0.55);
+                // Sayap Kanan
+                const wingR = new THREE.Mesh(wingGeo, wingMat);
+                wingR.position.set(0.75, 0, 0); // Anjakan supaya ia mengepak dari tengah badan
+                const wingRPivot = new THREE.Group();
+                wingRPivot.add(wingR);
+                butterflyGroup.add(wingRPivot);
 
-                // Cahaya dari Hantu (Glow Putih)
-                const glow = new THREE.PointLight(0xffffff, 1.5, 15);
-                glow.position.y = 0.5;
+                // Sayap Kiri
+                const wingL = new THREE.Mesh(wingGeo, wingMat);
+                wingL.position.set(-0.75, 0, 0);
+                const wingLPivot = new THREE.Group();
+                wingLPivot.add(wingL);
+                butterflyGroup.add(wingLPivot);
 
-                enemy.add(head);
-                enemy.add(body);
-                enemy.add(eye1);
-                enemy.add(eye2);
-                enemy.add(glow);
+                const glow = new THREE.PointLight(0x00e6ff, 1.5, 20);
+                butterflyGroup.add(glow);
 
-                hitMesh = new THREE.Mesh(new THREE.SphereGeometry(1.5), new THREE.MeshBasicMaterial({ visible: false }));
+                enemy.add(butterflyGroup);
+
+                hitMesh = new THREE.Mesh(new THREE.SphereGeometry(2.0), new THREE.MeshBasicMaterial({ visible: false }));
                 enemy.add(hitMesh);
 
-                enemy.position.set(Math.sin(ang)*dist, 1.5, -Math.cos(ang)*dist);
+                enemy.position.set(Math.sin(ang)*dist, 1.5 + Math.random() * 2, -Math.cos(ang)*dist);
                 
-                // Set offset apungan secara rawak supaya setiap hantu bergerak berbeza
-                enemy.userData = { type: 'ghost', floatOffset: Math.random() * Math.PI * 2 };
+                // Simpan rujukan untuk animasi mengepak sayap
+                enemy.userData = { 
+                    type: 'butterfly', 
+                    wingR: wingRPivot, 
+                    wingL: wingLPivot, 
+                    flapTime: Math.random() * 10 
+                };
             }
 
             scene.add(enemy);
             enemies.push({ mesh: enemy, hit: hitMesh });
         }
 
-        // --- SISTEM SERANGAN (AUTO ATTACK) ---
+        // --- SISTEM KUTIPAN AUTO ---
         function autoAttack() {
             if(!isPlaying) return;
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
@@ -369,7 +388,7 @@
                     for(let i=0; i<15; i++) sparkles.push(new Sparkle(w2D/2, h2D/2));
                     scene.remove(enemies[idx].mesh);
                     enemies.splice(idx, 1);
-                    score += 10; document.getElementById('scoreDisplay').innerText = `Skor: ${score}`;
+                    score += 10; document.getElementById('scoreDisplay').innerText = `Cozy: ${score}`;
                 }
             } else {
                 document.getElementById('crosshair').classList.remove('locked');
@@ -378,12 +397,13 @@
 
         function takeDamage() {
             hp -= 20; document.getElementById('hpBar').style.width = hp + "%";
+            // Flash warna cozy gold
             const f = document.getElementById('damageFlash'); f.style.opacity = 0.5; setTimeout(() => f.style.opacity = 0, 100);
             if(hp <= 0) {
                 isPlaying = false; clearInterval(enemySpawnInterval);
                 document.getElementById('gameUI').style.display = "none";
                 document.getElementById('gameOverMenu').style.display = "flex";
-                document.getElementById('finalScore').innerText = `Skor Akhir: ${score}`;
+                document.getElementById('finalScore').innerText = `Skor Terkumpul: ${score}`;
             }
         }
 
@@ -409,21 +429,26 @@
                     const e = enemies[i];
                     const dir = new THREE.Vector3().subVectors(camera.position, e.mesh.position).normalize();
                     
-                    if (e.mesh.userData.type === 'bird') {
-                        // Pergerakan Burung
-                        e.mesh.position.add(dir.multiplyScalar(0.13 * ts));
-                        e.mesh.lookAt(camera.position); 
-                        e.mesh.userData.wingAngle += 0.4 * ts;
-                        e.mesh.userData.wings.scale.x = 0.3 + 0.7 * Math.abs(Math.cos(e.mesh.userData.wingAngle));
-                    } else {
-                        // Pergerakan Hantu Putih
-                        e.mesh.position.add(dir.multiplyScalar(0.09 * ts));
+                    if (e.mesh.userData.type === 'skyStar') {
+                        // Pergerakan Shiny Star
+                        e.mesh.position.add(dir.multiplyScalar(0.12 * ts));
+                        // Bintang berputar secara seragam 
+                        e.mesh.userData.starMesh.rotation.y += 0.03 * ts;
+                        e.mesh.userData.starMesh.rotation.z += 0.02 * ts;
+                        e.mesh.userData.starMesh.rotation.x += 0.01 * ts;
+                    } else if (e.mesh.userData.type === 'butterfly') {
+                        // Pergerakan Rama-Rama
+                        e.mesh.position.add(dir.multiplyScalar(0.08 * ts));
+                        e.mesh.lookAt(camera.position); // Muka ke arah pemain
                         
-                        // Hantu memandang pemain supaya muka nampak sentiasa
-                        e.mesh.lookAt(camera.position);
-                        
-                        // Efek hantu terapung-apung (bobbing up and down)
-                        e.mesh.position.y += Math.sin(Date.now() * 0.003 + e.mesh.userData.floatOffset) * 0.02 * ts;
+                        // Animasi Mengepak Sayap (Flapping)
+                        e.mesh.userData.flapTime += 0.3 * ts;
+                        const flapAngle = Math.sin(e.mesh.userData.flapTime) * 0.8; // Kepak naik turun
+                        e.mesh.userData.wingR.rotation.z = flapAngle;
+                        e.mesh.userData.wingL.rotation.z = -flapAngle;
+
+                        // Rama-rama terapung-apung sikit
+                        e.mesh.position.y += Math.sin(Date.now() * 0.003 + e.mesh.userData.flapTime) * 0.015 * ts;
                     }
 
                     if(e.mesh.position.distanceTo(camera.position) < 2.5) {
