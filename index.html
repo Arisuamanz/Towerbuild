@@ -1,576 +1,351 @@
 <!DOCTYPE html>
-<html lang="ms">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hutan Magis: Survival (Fixed Refresh Rate)</title>
+    <title>Hutan Magis: Survival 180° Fixed</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- Memuatkan plugin Gyroscope untuk Three.js -->
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/DeviceOrientationControls.js"></script>
     <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: #020508;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            touch-action: none;
-            user-select: none;
-        }
-
-        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
-        #overlayCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 25; pointer-events: none; }
-
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #020508; font-family: sans-serif; touch-action: none; user-select: none; }
+        #canvas-3d { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; }
+        #canvas-2d { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 25; pointer-events: none; }
+        
         .cinematic-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             box-shadow: inset 0 0 150px rgba(0,0,0,0.9);
             background-image: url('https://upload.wikimedia.org/wikipedia/commons/7/76/1k_Grain.png');
-            background-repeat: repeat; opacity: 0.2; pointer-events: none; z-index: 20; mix-blend-mode: overlay;
+            opacity: 0.15; pointer-events: none; z-index: 20; mix-blend-mode: overlay;
         }
 
-        /* UI Permainan */
-        #gameUI {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; pointer-events: none; display: none;
-        }
+        #gameUI { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; pointer-events: none; display: none; }
+        #scoreDisplay { position: absolute; top: 20px; right: 20px; color: #fcd34d; font-size: 1.5rem; font-weight: bold; }
+        #hpContainer { position: absolute; top: 20px; left: 20px; width: 200px; height: 12px; background: rgba(0,0,0,0.5); border: 2px solid #fff; border-radius: 10px; overflow: hidden; }
+        #hpBar { width: 100%; height: 100%; background: linear-gradient(90deg, #ff4444, #44ff44); transition: width 0.3s; }
+        #crosshair { position: fixed; top: 50%; left: 50%; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.8); border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 8px #fff; }
         
-        #scoreDisplay {
-            position: absolute; top: 20px; right: 20px; color: #fcd34d; font-size: 1.5rem; font-weight: bold;
-            text-shadow: 0 0 10px rgba(252,211,77,0.8);
-        }
-
-        #hpContainer {
-            position: absolute; top: 20px; left: 20px; width: 200px; height: 20px;
-            background: rgba(0,0,0,0.5); border: 2px solid #fff; border-radius: 10px; overflow: hidden;
-        }
-
-        #hpBar {
-            width: 100%; height: 100%; background: linear-gradient(90deg, #ff0000, #00ff00);
-            transition: width 0.3s ease;
-        }
-
-        #crosshair {
-            position: fixed; top: 50%; left: 50%; width: 10px; height: 10px;
-            background: rgba(255,255,255,0.8); border-radius: 50%; transform: translate(-50%, -50%);
-            box-shadow: 0 0 10px rgba(255,255,255,0.8);
-        }
-
-        /* Status Gyro */
         #gyroStatus {
             position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            color: rgba(255,255,255,0.8); font-size: 0.9rem; z-index: 110; pointer-events: none; display: none;
-            background: rgba(0,0,0,0.6); padding: 5px 15px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2);
+            color: #fff; font-size: 0.8rem; z-index: 110; background: rgba(0,0,0,0.6);
+            padding: 5px 15px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2);
         }
 
-        /* Menu Utama & Game Over */
         .menu-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(2, 5, 8, 0.9); display: flex; flex-direction: column;
+            background: rgba(2, 5, 8, 0.98); display: flex; flex-direction: column;
             justify-content: center; align-items: center; z-index: 200; text-align: center;
         }
-
         .btn-enter {
-            padding: 15px 40px; border: 2px solid #fcd34d; background: transparent; color: #fcd34d;
-            font-size: 1.2rem; cursor: pointer; transition: all 0.3s; margin-top: 20px;
-            letter-spacing: 2px; border-radius: 30px; text-transform: uppercase; pointer-events: auto;
+            padding: 15px 45px; border: 2px solid #fcd34d; background: transparent; color: #fcd34d;
+            font-size: 1.2rem; cursor: pointer; border-radius: 40px; text-transform: uppercase; pointer-events: auto;
         }
-        .btn-enter:hover { background: #fcd34d; color: #020508; box-shadow: 0 0 20px rgba(252, 211, 77, 0.6); }
-
-        #gameOverMenu { display: none; }
-        .damage-flash {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: red; opacity: 0; pointer-events: none; z-index: 150; transition: opacity 0.1s;
-        }
+        #damageFlash { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: red; opacity: 0; pointer-events: none; z-index: 150; }
     </style>
 </head>
 <body>
 
-    <!-- Menu Utama -->
     <div id="mainMenu" class="menu-overlay">
-        <h1 class="text-4xl font-light mb-2 text-amber-100" style="text-shadow: 0 0 15px rgba(252,211,77,0.5);">SURVIVAL HUTAN</h1>
-        <p class="text-gray-300 italic mb-4">Bertahan dari serangan Roh Jahat</p>
-        <div class="bg-white/10 p-4 rounded-lg mb-6 max-w-sm mx-4 border border-white/20 text-left">
-            <p class="text-sm text-gray-200 mb-2">📱 <strong>Motion Gyro:</strong> Gerakkan telefon untuk aim (jika disokong).</p>
-            <p class="text-sm text-gray-200 mb-2">👁️ <strong>Leret 180°:</strong> Atau leret skrin untuk lihat kiri/kanan. (Musuh hanya dari depan).</p>
-            <p class="text-sm text-gray-200 mb-2">🎯 <strong>Tembak:</strong> Sentuh/Klik pada skrin untuk menembak.</p>
-            <p class="text-sm text-amber-300 mt-2 font-semibold text-center">Jangan biarkan mereka dekat!</p>
-        </div>
-        <button class="btn-enter" onclick="requestAccess()">Mula Bermain</button>
+        <h1 class="text-3xl text-amber-100 mb-2 font-light">HUTAN MAGIS</h1>
+        <p class="text-gray-400 mb-8 italic">180° Survival • Audio Fix • Motion</p>
+        <button class="btn-enter" onclick="requestAccess()">MULAI PERMAINAN</button>
     </div>
 
-    <!-- Menu Game Over -->
-    <div id="gameOverMenu" class="menu-overlay">
-        <h1 class="text-5xl font-bold mb-2 text-red-500" style="text-shadow: 0 0 20px rgba(255,0,0,0.8);">KORBAN HUTAN</h1>
-        <p class="text-gray-300 text-xl mb-4">Permainan Tamat</p>
-        <p class="text-3xl text-amber-300 mb-6 font-bold" id="finalScoreDisplay">Markah: 0</p>
-        <button class="btn-enter" onclick="location.reload()">Main Semula</button>
+    <div id="gameOverMenu" class="menu-overlay" style="display:none;">
+        <h1 class="text-4xl text-red-600 mb-4 font-bold">PERMAINAN SELESAI</h1>
+        <p id="finalScore" class="text-2xl text-amber-300 mb-8">Skor: 0</p>
+        <button class="btn-enter" onclick="location.reload()">COBA LAGI</button>
     </div>
 
-    <!-- UI Semasa Main -->
     <div id="gameUI">
         <div id="hpContainer"><div id="hpBar"></div></div>
-        <div id="scoreDisplay">Markah: 0</div>
+        <div id="scoreDisplay">Skor: 0</div>
+        <div id="gyroStatus">Gyro: Mencari...</div>
         <div id="crosshair"></div>
-        <div id="gyroStatus">Mencari Gyro...</div>
-        <div class="damage-flash" id="damageFlash"></div>
+        <div id="damageFlash"></div>
     </div>
 
     <div class="cinematic-overlay"></div>
-    <canvas id="overlayCanvas"></canvas>
-    <div id="canvas-container"></div>
+    <canvas id="canvas-2d"></canvas>
+    <div id="canvas-3d"></div>
 
     <script>
-        // ==========================================
-        // SISTEM GAME STATE & DELTA TIME
-        // ==========================================
-        let isPlaying = false;
-        let score = 0;
-        let hp = 100;
-        let enemies = [];
-        let enemySpawnInterval;
-        
-        // Pemasa (Clock) untuk selaraskan kelajuan di semua refresh rate
+        // --- KONFIGURASI GAME ---
+        let isPlaying = false, score = 0, hp = 100;
+        let enemies = [], enemySpawnInterval;
         const clock = new THREE.Clock();
 
-        // ==========================================
-        // SISTEM GYRO & AKSES
-        // ==========================================
-        let controls;
-        let useGyro = false;
+        // --- SISTEM ROTASI (KUNCI 180°) ---
+        let rotationY = 0, rotationX = 0;
+        const LIMIT_Y = Math.PI / 2; // Kunci 90 derajat kiri & kanan (Total 180)
+        const LIMIT_X = 0.5;
+        let gyroActive = false;
 
         function requestAccess() {
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission()
-                    .then(permissionState => {
-                        if (permissionState === 'granted') startGame();
-                        else {
-                            alert('Kebenaran Gyroscope ditolak. Leret skrin untuk melihat.');
-                            startGame();
-                        }
-                    })
-                    .catch(console.error);
+                DeviceOrientationEvent.requestPermission().then(state => {
+                    startGame();
+                }).catch(() => startGame());
             } else {
                 startGame();
             }
         }
 
         window.addEventListener('deviceorientation', (e) => {
-            if (e.alpha !== null && !useGyro) {
-                useGyro = true;
-                const status = document.getElementById('gyroStatus');
-                if(status) status.innerText = "Sensor Gyro: Aktif";
+            if (e.alpha !== null && isPlaying) {
+                gyroActive = true;
+                document.getElementById('gyroStatus').innerText = "Sensor Gyro: Aktif (180° Locked)";
+                
+                // Kalkulasi manual untuk mengunci 180 derajat
+                let rawY = (e.gamma * Math.PI / 180);
+                let rawX = ((e.beta - 75) * Math.PI / 180);
+
+                rotationY = Math.max(-LIMIT_Y, Math.min(LIMIT_Y, rawY));
+                rotationX = Math.max(-LIMIT_X, Math.min(LIMIT_X, rawX));
             }
         });
 
-        // ==========================================
-        // SISTEM 2D (SPARKLE SAHAJA)
-        // ==========================================
-        const canvas2D = document.getElementById('overlayCanvas');
+        // --- SISTEM AUDIO (DIPERBAIKI) ---
+        let audioCtx, gainNode;
+
+        function initAudio() {
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                gainNode = audioCtx.createGain();
+                gainNode.gain.value = 0.4;
+                gainNode.connect(audioCtx.destination);
+
+                // Noise Hujan
+                const bufferSize = 2 * audioCtx.sampleRate;
+                const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const output = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
+
+                const rainSource = audioCtx.createBufferSource();
+                rainSource.buffer = noiseBuffer;
+                rainSource.loop = true;
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 700;
+
+                rainSource.connect(filter);
+                filter.connect(gainNode);
+                rainSource.start();
+                
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+            } catch(e) { console.error("Audio error", e); }
+        }
+
+        function playChime() {
+            if (!audioCtx) return;
+            const notes = [523.25, 659.25, 783.99, 880.00];
+            const freq = notes[Math.floor(Math.random() * notes.length)];
+            const osc = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            osc.type = 'sine'; osc.frequency.value = freq;
+            g.gain.setValueAtTime(0, audioCtx.currentTime);
+            g.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.05);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
+            osc.connect(g); g.connect(gainNode);
+            osc.start(); osc.stop(audioCtx.currentTime + 1.2);
+        }
+
+        function playThunder() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            osc.type = 'sine'; osc.frequency.setValueAtTime(45, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 2.5);
+            g.gain.setValueAtTime(0, audioCtx.currentTime);
+            g.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.1);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 2.5);
+            osc.connect(g); g.connect(gainNode);
+            osc.start(); osc.stop(audioCtx.currentTime + 2.5);
+        }
+
+        // --- SISTEM 2D SPARKLE ---
+        const canvas2D = document.getElementById('canvas-2d');
         const ctx2D = canvas2D.getContext('2d');
-        let width2D = window.innerWidth, height2D = window.innerHeight;
-        canvas2D.width = width2D; canvas2D.height = height2D;
+        let w2D = window.innerWidth, h2D = window.innerHeight;
+        canvas2D.width = w2D; canvas2D.height = h2D;
+        const sparkles = [];
 
-        const magicParticles2D = [];
-
-        class MagicParticle2D {
+        class Sparkle {
             constructor(x, y) {
                 this.x = x; this.y = y;
-                this.size = Math.random() * 4 + 2;
-                const angle = Math.random() * Math.PI * 2;
-                const speed = Math.random() * 15 + 5;
-                this.vx = Math.cos(angle) * speed;
-                this.vy = Math.sin(angle) * speed;
-                this.life = 1.0;
-                this.decay = Math.random() * 0.03 + 0.02;
-                this.hue = Math.random() > 0.5 ? 45 : 35; 
+                this.size = Math.random() * 5 + 2;
+                const a = Math.random() * Math.PI * 2;
+                const s = Math.random() * 12 + 5;
+                this.vx = Math.cos(a) * s; this.vy = Math.sin(a) * s;
+                this.life = 1.0; this.decay = Math.random() * 0.02 + 0.02;
             }
-            update(timeScale) {
-                // Selaraskan fizik 2D dengan timeScale (DeltaTime)
-                this.x += this.vx * timeScale; 
-                this.y += this.vy * timeScale;
-                this.vx *= Math.pow(0.85, timeScale); 
-                this.vy *= Math.pow(0.85, timeScale); 
-                this.vy -= 0.2 * timeScale; 
-                this.life -= this.decay * timeScale;
+            update(ts) {
+                this.x += this.vx * ts; this.y += this.vy * ts;
+                this.vx *= Math.pow(0.88, ts); this.vy *= Math.pow(0.88, ts);
+                this.vy -= 0.1 * ts; this.life -= this.decay * ts;
             }
             draw() {
                 ctx2D.globalCompositeOperation = 'lighter';
                 ctx2D.beginPath(); ctx2D.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx2D.fillStyle = `hsla(${this.hue}, 100%, 70%, ${this.life})`;
-                ctx2D.shadowBlur = 20; ctx2D.shadowColor = `hsla(${this.hue}, 100%, 50%, ${this.life})`;
-                ctx2D.fill();
+                ctx2D.fillStyle = `hsla(45, 100%, 70%, ${this.life})`;
+                ctx2D.shadowBlur = 15; ctx2D.shadowColor = "orange"; ctx2D.fill();
             }
         }
 
-        function spawnMagic2D() {
-            for(let i=0; i<25; i++) {
-                magicParticles2D.push(new MagicParticle2D(width2D/2, height2D/2));
-            }
-        }
-
-        // ==========================================
-        // SISTEM 3D (HUTAN & MUSUH)
-        // ==========================================
-        let scene, camera, renderer, raycaster;
-        let rainGeo;
+        // --- SISTEM 3D ---
+        let scene, camera, renderer, raycaster, rainGeo;
         
-        let mouseX = 0, mouseY = 0;
-        let targetX = 0, targetY = 0;
-        let windowHalfX = window.innerWidth / 2;
-        let windowHalfY = window.innerHeight / 2;
-        let isDragging = false;
-        let previousMousePosition = { x: 0, y: 0 };
-
-        let audioCtx, gainNode;
-
         function init3D() {
-            const container = document.getElementById('canvas-container');
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x020508);
-            scene.fog = new THREE.FogExp2(0x020508, 0.025); 
+            scene.fog = new THREE.FogExp2(0x020508, 0.03);
 
-            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 2, 0); 
-            camera.rotation.order = "YXZ";
+            camera = new THREE.PerspectiveCamera(60, w2D / h2D, 0.1, 1000);
+            camera.position.set(0, 1.8, 0);
 
-            // Pasang DeviceOrientationControls (Gyro)
-            controls = new THREE.DeviceOrientationControls(camera);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(w2D, h2D);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('canvas-3d').appendChild(renderer.domElement);
 
             raycaster = new THREE.Raycaster();
+            scene.add(new THREE.AmbientLight(0x112233, 1));
 
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            container.appendChild(renderer.domElement);
-
-            const ambientLight = new THREE.AmbientLight(0x0c1a24, 0.8);
-            scene.add(ambientLight);
-
-            const groundGeo = new THREE.PlaneGeometry(200, 200);
-            const groundMat = new THREE.MeshLambertMaterial({ color: 0x050a07 });
-            const ground = new THREE.Mesh(groundGeo, groundMat);
+            const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshLambertMaterial({ color: 0x050805 }));
             ground.rotation.x = -Math.PI / 2;
             scene.add(ground);
 
-            createForest();
-            createRain3D();
-
-            // Kawalan Leret & Tembak
-            document.addEventListener('mousedown', onPointerDown);
-            document.addEventListener('mousemove', onPointerMove);
-            document.addEventListener('mouseup', onPointerUp);
-            document.addEventListener('touchstart', onPointerDown, { passive: false });
-            document.addEventListener('touchmove', onPointerMove, { passive: false });
-            document.addEventListener('touchend', onPointerUp);
-            
-            window.addEventListener('resize', onWindowResize);
-        }
-
-        function createForest() {
-            const trunkGeo = new THREE.CylinderGeometry(0.3, 0.5, 4, 5);
-            const trunkMat = new THREE.MeshLambertMaterial({ color: 0x110a05 });
-            const leavesGeo = new THREE.ConeGeometry(2, 6, 5);
-            const leavesMat = new THREE.MeshLambertMaterial({ color: 0x06140b });
-
             for (let i = 0; i < 150; i++) {
                 const tree = new THREE.Group();
-                const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.4, 4), new THREE.MeshLambertMaterial({ color: 0x110800 }));
                 trunk.position.y = 2; tree.add(trunk);
-
-                for(let j=0; j<3; j++) {
-                    const leaves = new THREE.Mesh(leavesGeo, leavesMat);
-                    leaves.position.y = 4 + (j * 2);
-                    leaves.scale.setScalar(1 - (j * 0.2));
-                    tree.add(leaves);
-                }
-
-                let angle, radius;
-                do {
-                    angle = Math.random() * Math.PI * 2;
-                    radius = 5 + Math.random() * 80;
-                } while (radius < 20 && Math.cos(angle) < 0.5); 
-
-                tree.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
-                tree.rotation.y = Math.random() * Math.PI;
-                tree.scale.setScalar(0.8 + Math.random() * 0.8);
+                const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.5, 5), new THREE.MeshLambertMaterial({ color: 0x051105 }));
+                leaves.position.y = 4.5; tree.add(leaves);
+                const d = 6 + Math.random() * 60; const a = Math.random() * Math.PI * 2;
+                tree.position.set(Math.cos(a)*d, 0, Math.sin(a)*d);
                 scene.add(tree);
             }
-        }
 
-        function createRain3D() {
-            const rainCount = 2000;
-            rainGeo = new THREE.BufferGeometry();
-            const positions = new Float32Array(rainCount * 3);
-            const velocities = [];
-
-            for (let i = 0; i < rainCount; i++) {
-                positions[i * 3] = (Math.random() - 0.5) * 100;
-                positions[i * 3 + 1] = Math.random() * 40;
-                positions[i * 3 + 2] = (Math.random() - 0.5) * 100;
-                velocities.push(0.5 + Math.random() * 0.5);
+            const rCount = 2000; rainGeo = new THREE.BufferGeometry();
+            const rPos = new Float32Array(rCount * 3);
+            for(let i=0; i<rCount*3; i+=3) {
+                rPos[i] = (Math.random()-0.5)*100; rPos[i+1] = Math.random()*40; rPos[i+2] = (Math.random()-0.5)*100;
             }
-            rainGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            rainGeo.userData = { velocities: velocities };
+            rainGeo.setAttribute('position', new THREE.BufferAttribute(rPos, 3));
+            scene.add(new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0x667788, size: 0.1, transparent: true, opacity: 0.5 })));
 
-            const rainMat = new THREE.PointsMaterial({ color: 0x88aabb, size: 0.1, transparent: true, opacity: 0.4 });
-            scene.add(new THREE.Points(rainGeo, rainMat));
-        }
-
-        // ==========================================
-        // SISTEM MUSUH & PERTEMPURAN
-        // ==========================================
-        function spawnEnemy() {
-            if (!isPlaying) return;
-
-            // Spawn hanya dalam lingkungan 180 darjah HADAPAN (-90 hingga +90 darjah)
-            const angle = (Math.random() - 0.5) * Math.PI;
-            const distance = 40 + Math.random() * 10;
-            const x = Math.sin(angle) * distance;
-            const z = -Math.cos(angle) * distance;
-
-            const enemyGroup = new THREE.Group();
-            const coreGeo = new THREE.OctahedronGeometry(1.2, 0);
-            const coreMat = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true });
-            const core = new THREE.Mesh(coreGeo, coreMat);
-            
-            const innerGeo = new THREE.OctahedronGeometry(0.8, 0);
-            const innerMat = new THREE.MeshBasicMaterial({ color: 0x550000 });
-            const inner = new THREE.Mesh(innerGeo, innerMat);
-
-            enemyGroup.add(core); enemyGroup.add(inner);
-            enemyGroup.position.set(x, 1.5 + Math.random() * 2, z);
-            scene.add(enemyGroup);
-            
-            enemies.push({ mesh: enemyGroup, core: core, hitbox: core });
-        }
-
-        function updateEnemies(timeScale) {
-            for (let i = enemies.length - 1; i >= 0; i--) {
-                let enemyData = enemies[i];
-                let enemy = enemyData.mesh;
-
-                // Rotasi & Kelajuan dikawal oleh DeltaTime (timeScale)
-                enemyData.core.rotation.y += 0.05 * timeScale;
-                enemyData.core.rotation.x += 0.02 * timeScale;
-
-                const dir = new THREE.Vector3().subVectors(camera.position, enemy.position).normalize();
-                enemy.position.add(dir.multiplyScalar(0.08 * timeScale)); 
-
-                if (enemy.position.distanceTo(camera.position) < 2.5) {
-                    takeDamage(20);
-                    scene.remove(enemy);
-                    enemies.splice(i, 1);
-                }
-            }
-        }
-
-        function takeDamage(amount) {
-            hp -= amount;
-            if (hp < 0) hp = 0;
-            
-            document.getElementById('hpBar').style.width = hp + '%';
-            
-            const flash = document.getElementById('damageFlash');
-            flash.style.opacity = 0.5;
-            setTimeout(() => { flash.style.opacity = 0; }, 150);
-
-            playSynth(100, 'sawtooth', 0.3);
-
-            if (hp <= 0 && isPlaying) gameOver();
-        }
-
-        function gameOver() {
-            isPlaying = false;
-            clearInterval(enemySpawnInterval);
-            document.getElementById('gameUI').style.display = 'none';
-            document.getElementById('gyroStatus').style.display = 'none';
-            document.getElementById('gameOverMenu').style.display = 'flex';
-            document.getElementById('finalScoreDisplay').innerText = `Markah Anda: ${score}`;
-        }
-
-        function onShoot() {
-            if (!isPlaying) return;
-            
-            spawnMagic2D();
-            playSynth(800, 'sine', 0.1); 
-
-            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-            const hitboxes = enemies.map(e => e.hitbox);
-            const intersects = raycaster.intersectObjects(hitboxes);
-
-            if (intersects.length > 0) {
-                const hitObject = intersects[0].object;
-                const index = enemies.findIndex(e => e.hitbox === hitObject);
-                if (index > -1) {
-                    scene.remove(enemies[index].mesh);
-                    enemies.splice(index, 1);
-                    
-                    score += 10;
-                    document.getElementById('scoreDisplay').innerText = `Markah: ${score}`;
-                    playSynth(300, 'square', 0.1);
-                }
-            }
-        }
-
-        // ==========================================
-        // KAWALAN KAMERA (180 DARJAH)
-        // ==========================================
-        function onPointerDown(event) {
-            if (!isPlaying) return;
-            isDragging = true;
-            previousMousePosition = {
-                x: event.touches ? event.touches[0].clientX : event.clientX,
-                y: event.touches ? event.touches[0].clientY : event.clientY
+            // Input Swipe
+            let isDown = false, lastX = 0, lastY = 0;
+            const startP = (e) => { isDown = true; const p = e.touches ? e.touches[0] : e; lastX = p.clientX; lastY = p.clientY; };
+            const moveP = (e) => {
+                if(!isDown || gyroActive) return;
+                const p = e.touches ? e.touches[0] : e;
+                rotationY -= (p.clientX - lastX) * 0.005;
+                rotationX -= (p.clientY - lastY) * 0.005;
+                rotationY = Math.max(-LIMIT_Y, Math.min(LIMIT_Y, rotationY));
+                rotationX = Math.max(-LIMIT_X, Math.min(LIMIT_X, rotationX));
+                lastX = p.clientX; lastY = p.clientY;
             };
+            const endP = () => { if(isDown) { shoot(); isDown = false; } };
+            window.addEventListener('mousedown', startP); window.addEventListener('mousemove', moveP); window.addEventListener('mouseup', endP);
+            window.addEventListener('touchstart', startP); window.addEventListener('touchmove', moveP); window.addEventListener('touchend', endP);
         }
 
-        function onPointerMove(event) {
-            if (isDragging && isPlaying && !useGyro) {
-                const currentX = event.touches ? event.touches[0].clientX : event.clientX;
-                const currentY = event.touches ? event.touches[0].clientY : event.clientY;
+        // --- GAME LOGIC ---
+        function spawnEnemy() {
+            if(!isPlaying) return;
+            const ang = (Math.random() - 0.5) * Math.PI; // Hanya depan
+            const dist = 40;
+            const enemy = new THREE.Group();
+            const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(1.2), new THREE.MeshBasicMaterial({ color: 0xff3333, wireframe: true }));
+            enemy.add(mesh);
+            enemy.position.set(Math.sin(ang)*dist, 1.5, -Math.cos(ang)*dist);
+            scene.add(enemy);
+            enemies.push({ mesh: enemy, hit: mesh });
+        }
 
-                const deltaX = currentX - previousMousePosition.x;
-                const deltaY = currentY - previousMousePosition.y;
-
-                targetX -= deltaX * 0.005; 
-                targetY -= deltaY * 0.005;
-
-                // Kunci 180 Darjah
-                targetX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, targetX));
-                targetY = Math.max(-0.4, Math.min(0.4, targetY));
-
-                previousMousePosition = { x: currentX, y: currentY };
+        function shoot() {
+            if(!isPlaying) return;
+            playChime();
+            for(let i=0; i<20; i++) sparkles.push(new Sparkle(w2D/2, h2D/2));
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const hits = raycaster.intersectObjects(enemies.map(e => e.hit));
+            if(hits.length > 0) {
+                const target = hits[0].object;
+                const idx = enemies.findIndex(e => e.hit === target);
+                scene.remove(enemies[idx].mesh); enemies.splice(idx, 1);
+                score += 10; document.getElementById('scoreDisplay').innerText = `Skor: ${score}`;
             }
         }
 
-        function onPointerUp() {
-            if (isPlaying) {
-                isDragging = false;
-                onShoot(); // Tembak diaktifkan
+        function takeDamage() {
+            hp -= 20; document.getElementById('hpBar').style.width = hp + "%";
+            const f = document.getElementById('damageFlash'); f.style.opacity = 0.5; setTimeout(() => f.style.opacity = 0, 100);
+            if(hp <= 0) {
+                isPlaying = false; clearInterval(enemySpawnInterval);
+                document.getElementById('gameUI').style.display = "none";
+                document.getElementById('gameOverMenu').style.display = "flex";
+                document.getElementById('finalScore').innerText = `Skor Akhir: ${score}`;
             }
         }
 
-        // ==========================================
-        // ANIMASI UTAMA & AUDIO DENGAN DELTA TIME
-        // ==========================================
         function animate() {
             requestAnimationFrame(animate);
-
-            // Dapatkan masa sejak frame terakhir
             let dt = clock.getDelta();
-            if (dt > 0.1) dt = 0.1; // Halang jump jika tab ditinggalkan
-            
-            // Penyelaras kelajuan supaya standard dengan skrin 60fps
-            let timeScale = dt * 60; 
+            if(dt > 0.1) dt = 0.1;
+            let ts = dt * 60;
 
-            if (isPlaying) {
-                if (useGyro && controls) {
-                    controls.update(); // Guna Gyro Jika Ada
-                } else {
-                    // Kamera Swipe + Delta Time Smooth
-                    camera.rotation.y += (targetX - camera.rotation.y) * (0.2 * timeScale);
-                    camera.rotation.x += (targetY - camera.rotation.x) * (0.2 * timeScale);
+            if(isPlaying) {
+                camera.rotation.set(rotationX, rotationY, 0);
+
+                for(let i = enemies.length-1; i >= 0; i--) {
+                    const e = enemies[i];
+                    const dir = new THREE.Vector3().subVectors(camera.position, e.mesh.position).normalize();
+                    e.mesh.position.add(dir.multiplyScalar(0.08 * ts));
+                    e.mesh.rotation.y += 0.05 * ts;
+                    if(e.mesh.position.distanceTo(camera.position) < 2.2) {
+                        scene.remove(e.mesh); enemies.splice(i, 1);
+                        takeDamage();
+                    }
                 }
-                updateEnemies(timeScale);
-            }
 
-            // Animasi Hujan (Selaras dengan Refresh Rate)
-            if (rainGeo) {
-                const positions = rainGeo.attributes.position.array;
-                const velocities = rainGeo.userData.velocities;
-                for (let i = 0; i < positions.length / 3; i++) {
-                    positions[i * 3 + 1] -= velocities[i] * timeScale;
-                    if (positions[i * 3 + 1] < 0) positions[i * 3 + 1] = 40;
+                const rPos = rainGeo.attributes.position.array;
+                for(let i=1; i<rPos.length; i+=3) {
+                    rPos[i] -= 0.6 * ts;
+                    if(rPos[i] < 0) rPos[i] = 40;
                 }
                 rainGeo.attributes.position.needsUpdate = true;
+                
+                if(Math.random() < 0.002) playThunder();
             }
 
             renderer.render(scene, camera);
 
-            // Animasi 2D Sparkle (Selaras dengan Refresh Rate)
-            ctx2D.clearRect(0, 0, width2D, height2D);
-            for (let i = magicParticles2D.length - 1; i >= 0; i--) {
-                const p = magicParticles2D[i];
-                p.update(timeScale);
-                if (p.life <= 0) magicParticles2D.splice(i, 1);
-                else p.draw();
+            ctx2D.clearRect(0,0, w2D, h2D);
+            for(let i = sparkles.length-1; i >= 0; i--) {
+                const s = sparkles[i]; s.update(ts);
+                if(s.life <= 0) sparkles.splice(i, 1); else s.draw();
             }
         }
 
-        function initAudio() {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            gainNode = audioCtx.createGain(); gainNode.gain.value = 0.4;
-            gainNode.connect(audioCtx.destination);
-
-            const bufferSize = 2 * audioCtx.sampleRate;
-            const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-            const output = noiseBuffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
-
-            const whiteNoise = audioCtx.createBufferSource();
-            whiteNoise.buffer = noiseBuffer; whiteNoise.loop = true;
-            const filter = audioCtx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 500; 
-
-            whiteNoise.connect(filter); filter.connect(gainNode); whiteNoise.start();
-        }
-
-        function playSynth(freq, type, duration) {
-            if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const g = audioCtx.createGain();
-            osc.type = type; osc.frequency.value = freq;
-            
-            g.gain.setValueAtTime(0, audioCtx.currentTime);
-            g.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.05);
-            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-
-            osc.connect(g); g.connect(gainNode);
-            osc.start(); osc.stop(audioCtx.currentTime + duration);
-        }
-
-        function onWindowResize() {
-            width2D = window.innerWidth; height2D = window.innerHeight;
-            canvas2D.width = width2D; canvas2D.height = height2D;
-            windowHalfX = width2D / 2; windowHalfY = height2D / 2;
-            camera.aspect = width2D / height2D; camera.updateProjectionMatrix();
-            renderer.setSize(width2D, height2D);
-        }
-
-        // ==========================================
-        // MULAKAN GAME
-        // ==========================================
         function startGame() {
-            document.getElementById('mainMenu').style.display = 'none';
-            document.getElementById('gameUI').style.display = 'block';
-            document.getElementById('gyroStatus').style.display = 'block'; // Papar UI Gyro
-            
-            if (!audioCtx) initAudio();
-            if (!scene) init3D();
-            
-            targetX = 0; targetY = 0;
-            camera.rotation.set(0,0,0);
-            clock.start(); // Mula pemasa delta time
-            
-            score = 0;
-            hp = 100;
-            document.getElementById('scoreDisplay').innerText = `Markah: 0`;
-            document.getElementById('hpBar').style.width = '100%';
-            
-            enemies.forEach(e => scene.remove(e.mesh));
-            enemies = [];
-
-            isPlaying = true;
-            
-            // Pastikan animasi hanya bermula sekali sahaja
-            if(!window.animationStarted) {
-                animate();
-                window.animationStarted = true;
-            }
-            
-            enemySpawnInterval = setInterval(spawnEnemy, 1500);
+            document.getElementById('mainMenu').style.display = "none";
+            document.getElementById('gameUI').style.display = "block";
+            initAudio();
+            if(!scene) init3D();
+            score = 0; hp = 100; isPlaying = true;
+            clock.start();
+            animate();
+            enemySpawnInterval = setInterval(spawnEnemy, 1600);
         }
+
+        window.addEventListener('resize', () => {
+            w2D = window.innerWidth; h2D = window.innerHeight;
+            canvas2D.width = w2D; canvas2D.height = h2D;
+            camera.aspect = w2D / h2D; camera.updateProjectionMatrix();
+            renderer.setSize(w2D, h2D);
+        });
     </script>
 </body>
 </html>
